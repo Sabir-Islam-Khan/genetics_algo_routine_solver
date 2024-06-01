@@ -11,20 +11,27 @@ sections = [
     {"name": "64_B", "subjects": ["CSE112", "ENG101", "CSE113"]},
     {"name": "64_C", "subjects": ["CSE113", "ENG101", "CSE114"]},
     {"name": "64_D", "subjects": ["CSE114", "CSE112", "ENG101"]},
-    {"name": "64_E", "subjects": ["CSE114", "CSE113", "END101"]},
+    {"name": "64_E", "subjects": ["CSE114", "CSE113", "ENG101"]},
 ]
 teachers = [
-    {"name": "SAH"},
-    {"name": "SIK"},
-    {"name": "SIT"},
-    {"name": "WAS"},
-    {"name": "MHS"},
+    {"name": "SAH", "subjects": ["ENG101", "CSE112"]},
+    {"name": "SIK", "subjects": ["CSE112", "ENG101"]},
+    {"name": "SIT", "subjects": ["CSE113", "CSE114"]},
+    {"name": "WAS", "subjects": ["CSE114"]},
+    {"name": "MHS", "subjects": ["ENG101"]},
 ]
 
 # Constants
 POPULATION_SIZE = 100
 GENERATIONS = 500
 MUTATION_RATE = 0.1
+
+# Helper function to get the teacher for a subject
+def get_teacher_for_subject(subject):
+    for teacher in teachers:
+        if subject in teacher["subjects"]:
+            return teacher["name"]
+    return None
 
 def create_individual():
     individual = []
@@ -34,20 +41,28 @@ def create_individual():
                 room = random.choice(rooms)
                 day = random.randint(0, num_days - 1)
                 slot = random.randint(0, slots_per_day - 1)
-                individual.append((section["name"], subject, room["name"], day, slot))
+                teacher = get_teacher_for_subject(subject)
+                individual.append((section["name"], subject, room["name"], day, slot, teacher))
     return individual
 
 def calculate_fitness(individual):
     conflicts = 0
     schedule = {}
-    for section, subject, room, day, slot in individual:
+    teacher_schedule = {}
+    
+    for section, subject, room, day, slot, teacher in individual:
         if (room, day, slot) in schedule:
             conflicts += 1
         else:
             schedule[(room, day, slot)] = (section, subject)
+        
+        if (teacher, day, slot) in teacher_schedule:
+            conflicts += 1
+        else:
+            teacher_schedule[(teacher, day, slot)] = (section, subject)
     
     section_schedule = {}
-    for section, subject, room, day, slot in individual:
+    for section, subject, room, day, slot, teacher in individual:
         if (section, day, slot) in section_schedule:
             conflicts += 1
         else:
@@ -58,11 +73,11 @@ def calculate_fitness(individual):
 def mutate(individual):
     if random.random() < MUTATION_RATE:
         idx = random.randint(0, len(individual) - 1)
-        section, subject, room, day, slot = individual[idx]
+        section, subject, room, day, slot, teacher = individual[idx]
         new_room = random.choice(rooms)["name"]
         new_day = random.randint(0, num_days - 1)
         new_slot = random.randint(0, slots_per_day - 1)
-        individual[idx] = (section, subject, new_room, new_day, new_slot)
+        individual[idx] = (section, subject, new_room, new_day, new_slot, teacher)
     return individual
 
 def crossover(parent1, parent2):
@@ -95,9 +110,9 @@ def genetic_algorithm():
 
 def visualize_schedule(individual):
     fig, axs = plt.subplots(nrows=len(rooms), ncols=num_days, figsize=(20, 10))
-    for section, subject, room, day, slot in individual:
+    for section, subject, room, day, slot, teacher in individual:
         room_idx = [r["name"] for r in rooms].index(room)
-        axs[room_idx, day].text(0.5, 0.5, f"{section}\n{subject}", ha="center", va="center", fontsize=10)
+        axs[room_idx, day].text(0.5, 0.5, f"{section}\n{subject}\n{teacher}", ha="center", va="center", fontsize=10)
         axs[room_idx, day].set_xticks([])
         axs[room_idx, day].set_yticks([])
         axs[room_idx, day].set_title(f"Day {day + 1}", fontsize=12)
