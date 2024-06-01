@@ -3,22 +3,17 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # Data
-rooms = [{"name": "Room1"}, {"name": "Room2"}, {"name": "Room3"}, {"name": "Room4"}, {"name": "Room5"}]
+rooms = [{"name": "Room1"}, {"name": "Room2"}, {"name" : "Room3"}]
 num_days = 7
 slots_per_day = 7
 sections = [
-    {"name": "64_A", "subjects": ["ENG101", "CSE112", "CSE114"]},
+    {"name": "64_A", "subjects": ["ENG101", "CSE112", "CSE113"]},
     {"name": "64_B", "subjects": ["CSE112", "ENG101", "CSE113"]},
-    {"name": "64_C", "subjects": ["CSE113", "ENG101", "CSE114"]},
-    {"name": "64_D", "subjects": ["CSE114", "CSE112", "ENG101"]},
-    {"name": "64_E", "subjects": ["CSE114", "CSE113", "ENG101"]},
 ]
 teachers = [
-    {"name": "SAH", "subjects": ["ENG101", "CSE112"]},
-    {"name": "SIK", "subjects": ["CSE112", "ENG101"]},
-    {"name": "SIT", "subjects": ["CSE113", "CSE114"]},
-    {"name": "WAS", "subjects": ["CSE114"]},
-    {"name": "MHS", "subjects": ["ENG101"]},
+    {"name": "SAH", "subjects": ["ENG101", "CSE112", "CSE113"]},
+    {"name": "SIK", "subjects": ["CSE112", "CSE113", "ENG101"]},
+    {"name": "SIT", "subjects": ["CSE113", "CSE112", "ENG101"]},
 ]
 
 # Constants
@@ -35,39 +30,46 @@ def get_teacher_for_subject(subject):
 
 def create_individual():
     individual = []
+    used_slots = set()
     for section in sections:
         for subject in section["subjects"]:
             for _ in range(2):  # Each subject has two classes per week
-                room = random.choice(rooms)
+                room = random.choice(rooms)["name"]
                 day = random.randint(0, num_days - 1)
                 slot = random.randint(0, slots_per_day - 1)
                 teacher = get_teacher_for_subject(subject)
-                individual.append((section["name"], subject, room["name"], day, slot, teacher))
+                while (room, day, slot) in used_slots or (teacher, day, slot) in used_slots or (section["name"], day, slot) in used_slots:
+                    room = random.choice(rooms)["name"]
+                    day = random.randint(0, num_days - 1)
+                    slot = random.randint(0, slots_per_day - 1)
+                used_slots.add((room, day, slot))
+                used_slots.add((teacher, day, slot))
+                used_slots.add((section["name"], day, slot))
+                individual.append((section["name"], subject, room, day, slot, teacher))
     return individual
 
 def calculate_fitness(individual):
     conflicts = 0
     schedule = {}
     teacher_schedule = {}
-    
+    section_schedule = {}
+
     for section, subject, room, day, slot, teacher in individual:
         if (room, day, slot) in schedule:
             conflicts += 1
         else:
             schedule[(room, day, slot)] = (section, subject)
-        
+
         if (teacher, day, slot) in teacher_schedule:
             conflicts += 1
         else:
             teacher_schedule[(teacher, day, slot)] = (section, subject)
-    
-    section_schedule = {}
-    for section, subject, room, day, slot, teacher in individual:
+
         if (section, day, slot) in section_schedule:
             conflicts += 1
         else:
             section_schedule[(section, day, slot)] = (subject, room)
-    
+
     return -conflicts
 
 def mutate(individual):
@@ -77,6 +79,12 @@ def mutate(individual):
         new_room = random.choice(rooms)["name"]
         new_day = random.randint(0, num_days - 1)
         new_slot = random.randint(0, slots_per_day - 1)
+        while (new_room, new_day, new_slot) in {(r, d, s) for _, _, r, d, s, _ in individual} or \
+              (teacher, new_day, new_slot) in {(t, d, s) for _, _, _, d, s, t in individual} or \
+              (section, new_day, new_slot) in {(sec, d, s) for sec, _, _, d, s, _ in individual}:
+            new_room = random.choice(rooms)["name"]
+            new_day = random.randint(0, num_days - 1)
+            new_slot = random.randint(0, slots_per_day - 1)
         individual[idx] = (section, subject, new_room, new_day, new_slot, teacher)
     return individual
 
@@ -102,20 +110,34 @@ def genetic_algorithm():
             new_population.append(mutate(child1))
             new_population.append(mutate(child2))
         population = new_population
+        best_fitness = max([calculate_fitness(ind) for ind in population])
         if generation % 50 == 0:
-            print(f"Generation {generation}: Best fitness = {max([calculate_fitness(ind) for ind in population])}")
+            print(f"Generation {generation}: Best fitness = {best_fitness}")
+        if best_fitness == 0:
+            break
 
     best_individual = max(population, key=calculate_fitness)
     return best_individual
 
 def visualize_schedule(individual):
-    fig, axs = plt.subplots(nrows=len(rooms), ncols=num_days, figsize=(20, 10))
-    for section, subject, room, day, slot, teacher in individual:
-        room_idx = [r["name"] for r in rooms].index(room)
-        axs[room_idx, day].text(0.5, 0.5, f"{section}\n{subject}\n{teacher}", ha="center", va="center", fontsize=10)
-        axs[room_idx, day].set_xticks([])
-        axs[room_idx, day].set_yticks([])
-        axs[room_idx, day].set_title(f"Day {day + 1}", fontsize=12)
+    fig, axs = plt.subplots(nrows=len(rooms), ncols=num_days, figsize=(20, 15))
+    
+    for room_idx, room in enumerate(rooms):
+        for day in range(num_days):
+            for slot in range(slots_per_day):
+                events = [(sec, subj, tea) for sec, subj, r, d, s, tea in individual if r == room["name"] and d == day and s == slot]
+                if events:
+                    event_text = "\n".join([f"{sec}\n{subj}\n{tea}" for sec, subj, tea in events])
+                    axs[room_idx, day].text(0.5, slot / slots_per_day, event_text, ha="center", va="center", fontsize=8, backgroundcolor='white')
+                else:
+                    axs[room_idx, day].text(0.5, slot / slots_per_day, "", ha="center", va="center", fontsize=8, backgroundcolor='white')
+                
+                # Draw horizontal lines for slots
+                axs[room_idx, day].axhline(y=slot / slots_per_day, color='black', linestyle='-', linewidth=0.5)
+            
+            axs[room_idx, day].set_xticks([])
+            axs[room_idx, day].set_yticks([])
+            axs[room_idx, day].set_title(f"Day {day + 1}", fontsize=12)
     
     for ax, room in zip(axs[:, 0], rooms):
         ax.set_ylabel(room["name"], fontsize=12, rotation=0, labelpad=20)
@@ -123,11 +145,14 @@ def visualize_schedule(individual):
     for ax in axs.flat:
         ax.set_xticks([])
         ax.set_yticks([])
-        ax.set_aspect('equal', 'box')
-    
-    plt.subplots_adjust(wspace=0.2, hspace=0.2)
+        
+    plt.tight_layout()
     plt.show()
 
-# Run the genetic algorithm and visualize the best schedule
-best_schedule = genetic_algorithm()
-visualize_schedule(best_schedule)
+
+
+# Run the genetic algorithm
+best_solution = genetic_algorithm()
+
+# Visualize the schedule
+visualize_schedule(best_solution)
