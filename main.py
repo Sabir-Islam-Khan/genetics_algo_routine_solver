@@ -6,6 +6,10 @@ import numpy as np
 rooms = [{"name": "Room1"}, {"name": "Room2"}, {"name" : "Room3"}]
 num_days = 7
 slots_per_day = 7
+time_slots = [
+    "8:30-9:45AM", "9:45-11:00AM", "11:00-12:15PM", "12:15-1:30PM",
+    "1:30-2:45PM", "2:45-4:00PM", "4:00-5:15PM"
+]
 sections = [
     {"name": "64_A", "subjects": ["ENG101", "CSE112", "CSE113"]},
     {"name": "64_B", "subjects": ["CSE112", "ENG101", "CSE113"]},
@@ -128,9 +132,9 @@ def visualize_schedule(individual):
                 events = [(sec, subj, tea) for sec, subj, r, d, s, tea in individual if r == room["name"] and d == day and s == slot]
                 if events:
                     event_text = "\n".join([f"{sec}\n{subj}\n{tea}" for sec, subj, tea in events])
-                    axs[room_idx, day].text(0.5, slot / slots_per_day, event_text, ha="center", va="center", fontsize=8, backgroundcolor='white')
+                    axs[room_idx, day].text(0.5, (slot + 0.5) / slots_per_day, event_text, ha="center", va="center", fontsize=8, backgroundcolor='white')
                 else:
-                    axs[room_idx, day].text(0.5, slot / slots_per_day, "", ha="center", va="center", fontsize=8, backgroundcolor='white')
+                    axs[room_idx, day].text(0.5, (slot + 0.5) / slots_per_day, "", ha="center", va="center", fontsize=8, backgroundcolor='white')
                 
                 # Draw horizontal lines for slots
                 axs[room_idx, day].axhline(y=slot / slots_per_day, color='black', linestyle='-', linewidth=0.5)
@@ -145,14 +149,15 @@ def visualize_schedule(individual):
     for ax in axs.flat:
         ax.set_xticks([])
         ax.set_yticks([])
-        
+
+    # Add time slots to the right side of the plots
+    for ax in axs[:, -1]:
+        for slot in range(slots_per_day):
+            ax.text(1.05, (slot + 0.5) / slots_per_day, time_slots[slot], transform=ax.transAxes, fontsize=10, va='center')
+
     plt.tight_layout()
     plt.show()
 
-
-
-# Run the genetic algorithm
+# Run the genetic algorithm and visualize the best schedule
 best_solution = genetic_algorithm()
-
-# Visualize the schedule
 visualize_schedule(best_solution)
