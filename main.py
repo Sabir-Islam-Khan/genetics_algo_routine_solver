@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # Data
-rooms = [{"name": "Room1"}, {"name": "Room2"}, {"name" : "Room3"}]
+rooms = [{"name": "Room1"}, {"name": "Room2"}]
 num_days = 7
 slots_per_day = 7
 time_slots = [
@@ -13,9 +13,11 @@ time_slots = [
 sections = [
     {"name": "64_A", "subjects": ["ENG101", "CSE112", "CSE113"]},
     {"name": "64_B", "subjects": ["CSE112", "ENG101", "CSE113"]},
+    {"name": "64_C", "subjects": ["ENG101", "CSE112", "CSE113"]},
+    {"name": "64_D", "subjects": ["CSE112", "ENG101", "CSE113"]},
 ]
 teachers = [
-    {"name": "SAH", "subjects": ["ENG101", "CSE112", "CSE113"]},
+    {"name": "SAH", "subjects": ["ENG101"]},
     {"name": "SIK", "subjects": ["CSE112", "CSE113", "ENG101"]},
     {"name": "SIT", "subjects": ["CSE113", "CSE112", "ENG101"]},
 ]
@@ -24,6 +26,8 @@ teachers = [
 POPULATION_SIZE = 100
 GENERATIONS = 500
 MUTATION_RATE = 0.1
+MAX_CLASSES_PER_DAY = 5
+MAX_DAYS_PER_WEEK = 5
 
 # Helper function to get the teacher for a subject
 def get_teacher_for_subject(subject):
@@ -35,6 +39,8 @@ def get_teacher_for_subject(subject):
 def create_individual():
     individual = []
     used_slots = set()
+    teacher_day_count = {teacher["name"]: {day: 0 for day in range(num_days)} for teacher in teachers}
+    teacher_week_count = {teacher["name"]: 0 for teacher in teachers}
     for section in sections:
         for subject in section["subjects"]:
             for _ in range(2):  # Each subject has two classes per week
@@ -42,13 +48,21 @@ def create_individual():
                 day = random.randint(0, num_days - 1)
                 slot = random.randint(0, slots_per_day - 1)
                 teacher = get_teacher_for_subject(subject)
-                while (room, day, slot) in used_slots or (teacher, day, slot) in used_slots or (section["name"], day, slot) in used_slots:
+                while ((room, day, slot) in used_slots or 
+                       (teacher, day, slot) in used_slots or 
+                       (section["name"], day, slot) in used_slots or 
+                       teacher_day_count[teacher][day] >= MAX_CLASSES_PER_DAY or 
+                       teacher_week_count[teacher] >= MAX_DAYS_PER_WEEK and 
+                       day not in [d for d, c in teacher_day_count[teacher].items() if c > 0]):
                     room = random.choice(rooms)["name"]
                     day = random.randint(0, num_days - 1)
                     slot = random.randint(0, slots_per_day - 1)
                 used_slots.add((room, day, slot))
                 used_slots.add((teacher, day, slot))
                 used_slots.add((section["name"], day, slot))
+                teacher_day_count[teacher][day] += 1
+                if teacher_day_count[teacher][day] == 1:
+                    teacher_week_count[teacher] += 1
                 individual.append((section["name"], subject, room, day, slot, teacher))
     return individual
 
@@ -57,6 +71,8 @@ def calculate_fitness(individual):
     schedule = {}
     teacher_schedule = {}
     section_schedule = {}
+    teacher_day_count = {teacher["name"]: {day: 0 for day in range(num_days)} for teacher in teachers}
+    teacher_week_count = {teacher["name"]: 0 for teacher in teachers}
 
     for section, subject, room, day, slot, teacher in individual:
         if (room, day, slot) in schedule:
@@ -73,6 +89,15 @@ def calculate_fitness(individual):
             conflicts += 1
         else:
             section_schedule[(section, day, slot)] = (subject, room)
+
+        teacher_day_count[teacher][day] += 1
+        if teacher_day_count[teacher][day] > MAX_CLASSES_PER_DAY:
+            conflicts += (teacher_day_count[teacher][day] - MAX_CLASSES_PER_DAY)
+
+    for teacher in teachers:
+        teacher_week_count[teacher["name"]] = sum(1 for count in teacher_day_count[teacher["name"]].values() if count > 0)
+        if teacher_week_count[teacher["name"]] > MAX_DAYS_PER_WEEK:
+            conflicts += (teacher_week_count[teacher["name"]] - MAX_DAYS_PER_WEEK)
 
     return -conflicts
 
